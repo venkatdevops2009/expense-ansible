@@ -1,4 +1,4 @@
 ansible_user: ec2-user
 ansible_password: DevOps321
-BACKEND-PRIVATE-IP: 172.31.12.177
+BACKEND_PRIVATE_IP: 172.31.12.177
 MYSQL_HOST: 172.31.4.171
