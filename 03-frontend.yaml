@@ -1,44 +1,75 @@
-- name: configure frontend server
+---
+- name: Configure Frontend Server
   hosts: frontend
   become: yes
+
+  vars:
+    frontend_url: https://raw.githubusercontent.com/daws-90s/expense-documentation/refs/heads/main/artifacts/expense-frontend-v3.tar.gz
+    web_root: /usr/share/nginx/html
+
   tasks:
-  - name: enable nginx 1.24
-    command: dnf module enable nginx:1.24 -y
-  - name: install nginx
-    package:
-      name: nginx
-      state: present
-  - name: remove html directory
-    file:
-      path: /usr/share/nginx/html/
-      state: absent
-  - name: delete frontend.zip in tmp directory
-    file:
-      path: /tmp/frontend.zip
-      state: absent
-  - name: create html directory
-    file:
-      path: /usr/share/nginx/html/
-      state: directory
-  - name: download frontend
-    get_url:
-      url: https://raw.githubusercontent.com/daws-90s/expense-documentation/refs/heads/main/artifacts/expense-frontend-v3.tar.gz 
-      dest: /tmp/frontend.zip
-  - name: unzip frontend
-    unarchive:
-      src: /tmp/frontend.zip
-      dest: /usr/share/nginx/html/
-      remote_src: yes
-  - name: remove nginx default conf
-    file:
-      path: /etc/nginx/nginx.conf
-      state: absent
-  - name: copy nginx conf
-    template:
-      src: nginx.conf.j2
-      dest: /etc/nginx/nginx.conf
-  - name: restart and enable frontend
-    service:
-      name: nginx
-      state: restarted
-      enabled: yes
+
+    - name: Enable Nginx 1.24 module
+      command: dnf module enable nginx:1.24 -y
+      args:
+        creates: /etc/dnf/modules.d/nginx.module
+
+    - name: Install Nginx
+      package:
+        name: nginx
+        state: present
+
+    - name: Remove existing web root
+      file:
+        path: "{{ web_root }}"
+        state: absent
+
+    - name: Create web root directory
+      file:
+        path: "{{ web_root }}"
+        state: directory
+        owner: nginx
+        group: nginx
+        mode: '0755'
+
+    - name: Download frontend application
+      get_url:
+        url: "{{ frontend_url }}"
+        dest: /tmp/frontend.tar.gz
+        mode: '0644'
+
+    - name: Extract frontend application
+      unarchive:
+        src: /tmp/frontend.tar.gz
+        dest: "{{ web_root }}"
+        remote_src: yes
+
+    - name: Set ownership of web files
+      file:
+        path: "{{ web_root }}"
+        owner: nginx
+        group: nginx
+        recurse: yes
+
+    - name: Deploy Nginx configuration
+      template:
+        src: nginx.conf.j2
+        dest: /etc/nginx/nginx.conf
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Restart Nginx
+
+    - name: Enable and start Nginx
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+  handlers:
+
+    - name: Restart Nginx
+      systemd:
+        name: nginx
+        daemon_reload: yes
+        state: restarted

@@ -1,73 +1,102 @@
-- name: configure backend server
+---
+- name: Configure Backend Server
   hosts: backend
   become: yes
+
+  vars:
+    app_path: /app
+    app_user: expense
+    backend_url: https://raw.githubusercontent.com/daws-90s/expense-documentation/refs/heads/main/artifacts/expense-backend-v3.tar.gz
+
   tasks:
-  - name: enable nodejs 20
-    command: dnf module enable nodejs:20 -y
-  - name: install nodejs 20
-    package:
-      name: nodejs
-      state: present
-  - name: create backend expense user
-    user:
-      name: expense
-      system: true
-      home: /app
-      shell: /sbin/nologin
-      comment: "expense System user"
-  - name: remove app directory
-    file:
-      path: /app
-      state: absent
-  - name: delete backend.zip in tmp directory
-    file:
-      path: /tmp/backend.zip
-      state: absent
-  - name: create app directory
-    file:
-      path: /app
-      state: directory
-  - name: download backend
-    get_url:
-      url: https://raw.githubusercontent.com/daws-90s/expense-documentation/refs/heads/main/artifacts/expense-backend-v3.tar.gz 
-      dest: /tmp/backend.zip
-  - name: unzip backend
-    unarchive:
-      src: /tmp/backend.zip
-      dest: /app
-      remote_src: yes
-  - name: install dependencies
-    community.general.npm:
-      path: /app
-  - name: copy backend service
-    template:
-      src: backend.service.j2
-      dest: /etc/systemd/system/backend.service
-  - name: install python dependencies
-    pip:
-      name: PyMySQL
-      executable: pip3.9
 
-  - name: install mysql client
-    package:
-      name: mysql
-      state: present
+    - name: Enable NodeJS 20 module
+      command: dnf module enable nodejs:20 -y
+      args:
+        creates: /etc/dnf/modules.d/nodejs.module
 
-  - name: load mysql data
-    community.mysql.mysql_db:
-      state: import
-      name: all
-      login_user: root
-      login_password: RoboShop@1
-      login_host: "{{ MYSQL_HOST }}"
-      target: /app/schema/backend.sql
-      
-  - name: deamon reload
-    systemd_service:
-      name: backend
-      daemon_reload: true
-  - name: enable and start backend
-    service:
-      name: backend
-      state: restarted
-      enabled: yes
+    - name: Install required packages
+      package:
+        name:
+          - nodejs
+          - python3-pip
+          - mysql
+        state: present
+
+    - name: Install PyMySQL
+      pip:
+        name: PyMySQL
+        executable: pip3.9
+
+    - name: Create expense user
+      user:
+        name: "{{ app_user }}"
+        system: yes
+        home: "{{ app_path }}"
+        shell: /sbin/nologin
+        comment: Expense Application User
+
+    - name: Remove old application directory
+      file:
+        path: "{{ app_path }}"
+        state: absent
+
+    - name: Create application directory
+      file:
+        path: "{{ app_path }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0755'
+
+    - name: Download backend application
+      get_url:
+        url: "{{ backend_url }}"
+        dest: /tmp/backend.tar.gz
+        mode: '0644'
+
+    - name: Extract backend application
+      unarchive:
+        src: /tmp/backend.tar.gz
+        dest: "{{ app_path }}"
+        remote_src: yes
+
+    - name: Set ownership
+      file:
+        path: "{{ app_path }}"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        recurse: yes
+
+    - name: Install NodeJS dependencies
+      community.general.npm:
+        path: "{{ app_path }}"
+
+    - name: Copy backend service
+      template:
+        src: backend.service.j2
+        dest: /etc/systemd/system/backend.service
+      notify: Restart Backend
+
+    - name: Import MySQL schema
+      community.mysql.mysql_db:
+        state: import
+        name: all
+        login_host: "{{ MYSQL_HOST }}"
+        login_user: root
+        login_password: RoboShop@1
+        target: "{{ app_path }}/schema/backend.sql"
+
+    - name: Start and enable backend service
+      service:
+        name: backend
+        state: started
+        enabled: yes
+
+  handlers:
+
+    - name: Restart Backend
+      systemd:
+        name: backend
+        daemon_reload: yes
+        state: restarted
