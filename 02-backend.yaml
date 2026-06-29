@@ -48,6 +48,11 @@
       name: PyMySQL
       executable: pip3.9
 
+  - name: install mysql client
+    package:
+    name: mysql
+    state: present
+
   - name: load mysql data
     community.mysql.mysql_db:
       state: import
