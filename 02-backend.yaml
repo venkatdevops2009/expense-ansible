@@ -50,8 +50,8 @@
 
   - name: install mysql client
     package:
-    name: mysql
-    state: present
+      name: mysql
+      state: present
 
   - name: load mysql data
     community.mysql.mysql_db:
