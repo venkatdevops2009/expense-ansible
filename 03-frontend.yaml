@@ -5,29 +5,28 @@
 
   vars:
     frontend_url: https://raw.githubusercontent.com/daws-90s/expense-documentation/refs/heads/main/artifacts/expense-frontend-v3.tar.gz
-    web_root: /usr/share/nginx/html
 
   tasks:
 
     - name: Enable nginx module
       command: dnf module enable nginx:1.24 -y
-      ignore_errors: yes
 
-    - name: Reinstall nginx
-      shell: |
-        dnf reinstall -y nginx || dnf install -y nginx
+    - name: Install nginx
+      dnf:
+        name: nginx
+        state: present
 
-    - name: Remove old web root
+    - name: Remove default html directory
       file:
-        path: "{{ web_root }}"
+        path: /usr/share/nginx/html
         state: absent
 
-    - name: Create web root
+    - name: Create html directory
       file:
-        path: "{{ web_root }}"
+        path: /usr/share/nginx/html
         state: directory
 
-    - name: Download frontend
+    - name: Download frontend application
       get_url:
         url: "{{ frontend_url }}"
         dest: /tmp/frontend.tar.gz
@@ -35,23 +34,20 @@
     - name: Extract frontend
       unarchive:
         src: /tmp/frontend.tar.gz
-        dest: "{{ web_root }}"
+        dest: /usr/share/nginx/html
         remote_src: yes
 
-    - name: Copy nginx configuration
+    - name: Copy expense nginx configuration
       template:
-        src: nginx.conf.j2
-        dest: /etc/nginx/nginx.conf
-        owner: root
-        group: root
-        mode: '0644'
+        src: expense.conf.j2
+        dest: /etc/nginx/conf.d/expense.conf
 
     - name: Validate nginx configuration
       command: nginx -t
       changed_when: false
 
-    - name: Enable nginx
+    - name: Enable and restart nginx
       service:
         name: nginx
-        enabled: yes
         state: restarted
+        enabled: yes
