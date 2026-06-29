@@ -9,41 +9,25 @@
 
   tasks:
 
-    - name: Remove nginx package
-      dnf:
-        name: nginx
-        state: absent
-
-    - name: Remove nginx configuration directory
-      file:
-        path: /etc/nginx
-        state: absent
-
-    - name: Remove nginx cache
-      file:
-        path: /var/cache/nginx
-        state: absent
+    - name: Enable nginx module
+      command: dnf module enable nginx:1.24 -y
       ignore_errors: yes
 
-    - name: Remove web root
+    - name: Reinstall nginx
+      shell: |
+        dnf reinstall -y nginx || dnf install -y nginx
+
+    - name: Remove old web root
       file:
         path: "{{ web_root }}"
         state: absent
-
-    - name: Enable nginx module
-      command: dnf module enable nginx:1.24 -y
-
-    - name: Install nginx
-      dnf:
-        name: nginx
-        state: present
 
     - name: Create web root
       file:
         path: "{{ web_root }}"
         state: directory
 
-    - name: Download frontend artifact
+    - name: Download frontend
       get_url:
         url: "{{ frontend_url }}"
         dest: /tmp/frontend.tar.gz
@@ -64,15 +48,10 @@
 
     - name: Validate nginx configuration
       command: nginx -t
-      register: nginx_test
       changed_when: false
 
-    - name: Display nginx test output
-      debug:
-        var: nginx_test.stderr_lines
-
-    - name: Enable and restart nginx
+    - name: Enable nginx
       service:
         name: nginx
-        state: restarted
         enabled: yes
+        state: restarted
