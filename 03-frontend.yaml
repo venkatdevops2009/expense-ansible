@@ -8,68 +8,49 @@
     web_root: /usr/share/nginx/html
 
   tasks:
-
-    - name: Enable Nginx 1.24 module
+    - name: Enable Nginx module
       command: dnf module enable nginx:1.24 -y
-      args:
-        creates: /etc/dnf/modules.d/nginx.module
 
     - name: Install Nginx
       package:
         name: nginx
         state: present
 
-    - name: Remove existing web root
+    - name: Remove old web root
       file:
         path: "{{ web_root }}"
         state: absent
 
-    - name: Create web root directory
+    - name: Create web root
       file:
         path: "{{ web_root }}"
         state: directory
-        owner: nginx
-        group: nginx
-        mode: '0755'
 
-    - name: Download frontend application
+    - name: Download frontend
       get_url:
         url: "{{ frontend_url }}"
         dest: /tmp/frontend.tar.gz
-        mode: '0644'
 
-    - name: Extract frontend application
+    - name: Extract frontend
       unarchive:
         src: /tmp/frontend.tar.gz
         dest: "{{ web_root }}"
         remote_src: yes
 
-    - name: Set ownership of web files
-      file:
-        path: "{{ web_root }}"
-        owner: nginx
-        group: nginx
-        recurse: yes
-
-    - name: Deploy Nginx configuration
+    - name: Copy expense nginx config
       template:
-        src: nginx.conf.j2
-        dest: /etc/nginx/nginx.conf
-        owner: root
-        group: root
-        mode: '0644'
-      notify: Restart Nginx
+        src: expense.conf.j2
+        dest: /etc/nginx/conf.d/expense.conf
+      notify: Restart nginx
 
-    - name: Enable and start Nginx
+    - name: Enable nginx
       service:
         name: nginx
-        state: started
         enabled: yes
+        state: started
 
   handlers:
-
-    - name: Restart Nginx
-      systemd:
+    - name: Restart nginx
+      service:
         name: nginx
-        daemon_reload: yes
         state: restarted
